@@ -3,7 +3,7 @@
 # sparsebundle 只增不减，在微信里删聊天记录不会把空间还给 SSD，要靠这一步。
 set -euo pipefail
 
-CONF="${WECHAT_EXPANDER_CONF:-$HOME/.config/wechat-expander.conf}"
+CONF="${WECHAT_TO_SSD_CONF:-$HOME/.config/wechat-to-ssd.conf}"
 [ -f "$CONF" ] && . "$CONF"
 IMG="${WECHAT_IMAGE:?未配置镜像路径。请创建 $CONF 并写入 WECHAT_IMAGE=/Volumes/你的盘名/WeChatData.sparsebundle}"
 MNT="${WECHAT_MOUNT:-$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files}"

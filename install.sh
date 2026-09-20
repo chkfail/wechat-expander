@@ -1,5 +1,5 @@
 #!/bin/bash
-# 安装 wechat-expander：创建镜像、写配置、装脚本、装 LaunchAgent。
+# 安装 wechat-to-ssd：创建镜像、写配置、装脚本、装 LaunchAgent。
 # 不迁移数据 —— 装完再单独跑 ./wechat-migrate.sh。
 #
 # 用法：./install.sh /Volumes/你的SSD [镜像上限]
@@ -27,7 +27,7 @@ case "$FS" in
       echo "      但拔盘风险更高，务必遵守「拔盘前先退微信」。" ;;
 esac
 
-CONF="${WECHAT_EXPANDER_CONF:-$HOME/.config/wechat-expander.conf}"
+CONF="${WECHAT_TO_SSD_CONF:-$HOME/.config/wechat-to-ssd.conf}"
 IMG="$VOL/WeChatData.sparsebundle"
 BIN="$HOME/bin"
 LOG="${TMPDIR:-/tmp}/wechatmount.log"
@@ -53,7 +53,7 @@ fi
 # 2. 配置
 mkdir -p "$(dirname "$CONF")"
 cat > "$CONF" <<EOF
-# wechat-expander 配置
+# wechat-to-ssd 配置
 WECHAT_IMAGE="$IMG"
 # WECHAT_MOUNT="\$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files"
 # WECHAT_WAIT_SECONDS=180

@@ -2,7 +2,7 @@
 # 把微信数据镜像挂载到容器内的数据目录。
 # 由 LaunchAgent 在开机和插盘时调用，也可手动执行。幂等。
 
-CONF="${WECHAT_EXPANDER_CONF:-$HOME/.config/wechat-expander.conf}"
+CONF="${WECHAT_TO_SSD_CONF:-$HOME/.config/wechat-to-ssd.conf}"
 [ -f "$CONF" ] && . "$CONF"
 IMG="${WECHAT_IMAGE:?未配置镜像路径。请创建 $CONF 并写入 WECHAT_IMAGE=/Volumes/你的盘名/WeChatData.sparsebundle}"
 MNT="${WECHAT_MOUNT:-$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files}"

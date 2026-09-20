@@ -13,7 +13,7 @@ README 里《设计约束（改代码前必读）》那四条是硬约束：`uch
 每个脚本顶部的配置读取是固定四行，新增脚本照抄：
 
 ```bash
-CONF="${WECHAT_EXPANDER_CONF:-$HOME/.config/wechat-expander.conf}"
+CONF="${WECHAT_TO_SSD_CONF:-$HOME/.config/wechat-to-ssd.conf}"
 [ -f "$CONF" ] && . "$CONF"
 IMG="${WECHAT_IMAGE:?...}"
 MNT="${WECHAT_MOUNT:-$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files}"

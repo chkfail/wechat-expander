@@ -1,4 +1,4 @@
-# wechat-expander
+# wechat-to-ssd
 
 **Mac 微信吃掉几十 GB 内置盘？把聊天数据搬到外置 SSD，微信照常用。**
 
@@ -35,7 +35,7 @@ WeChat from silently rebuilding a divergent data set while the SSD is absent.
 把下面这句话丢给 Claude、Codex、Zcode，或任何能在你电脑上跑命令的 AI agent：
 
 ```
-读 https://github.com/chkfail/wechat-expander 的 README，帮我把 Mac 微信数据迁到外置 SSD
+读 https://github.com/chkfail/wechat-to-ssd 的 README，帮我把 Mac 微信数据迁到外置 SSD
 ```
 
 本 README 后半部分就是写给它看的操作说明，它会照着做完，包括中途需要你手动点的两个系统设置。
@@ -43,8 +43,8 @@ WeChat from silently rebuilding a divergent data set while the SSD is absent.
 ## 自己动手
 
 ```bash
-git clone https://github.com/chkfail/wechat-expander.git
-cd wechat-expander
+git clone https://github.com/chkfail/wechat-to-ssd.git
+cd wechat-to-ssd
 ./install.sh /Volumes/你的SSD
 ```
 
@@ -109,7 +109,7 @@ pgrep -x WeChat && echo "微信在运行，需要退出"
 ./install.sh /Volumes/你的SSD
 ```
 
-创建镜像、写配置到 `~/.config/wechat-expander.conf`、装脚本到 `~/bin/`、生成并加载 LaunchAgent。**不碰数据。**
+创建镜像、写配置到 `~/.config/wechat-to-ssd.conf`、装脚本到 `~/bin/`、生成并加载 LaunchAgent。**不碰数据。**
 
 ### 2. 让用户给 `/bin/bash` 完全磁盘访问权限
 
@@ -185,7 +185,7 @@ bash ~/bin/wechat-compact.sh                      # 回收空间（先退微信�
 
 ```bash
 # 先 Cmd+Q 退微信
-. ~/.config/wechat-expander.conf
+. ~/.config/wechat-to-ssd.conf
 MNT="$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files"
 
 launchctl unload ~/Library/LaunchAgents/com.local.wechatmount.plist
@@ -208,7 +208,7 @@ hdiutil detach /tmp/wcback
 
 **`wechat-mount.sh` 必须幂等。** `StartOnMount` 会在任何文件系统挂载时触发，重复执行是常态。
 
-**配置统一从 `~/.config/wechat-expander.conf` 读**，环境变量可覆盖。别在脚本里写死卷名或 home 路径。
+**配置统一从 `~/.config/wechat-to-ssd.conf` 读**，环境变量可覆盖。别在脚本里写死卷名或 home 路径。
 
 ## 文件
 

@@ -5,7 +5,7 @@
 # 破坏性操作前有两道 yes 确认，任何一步不满意都可以中止，原数据不动。
 set -euo pipefail
 
-CONF="${WECHAT_EXPANDER_CONF:-$HOME/.config/wechat-expander.conf}"
+CONF="${WECHAT_TO_SSD_CONF:-$HOME/.config/wechat-to-ssd.conf}"
 [ -f "$CONF" ] && . "$CONF"
 IMG="${WECHAT_IMAGE:?未配置镜像路径。请先跑 ./install.sh，或手动创建 $CONF}"
 CONTAINER="${WECHAT_CONTAINER:-$HOME/Library/Containers/com.tencent.xinWeChat/Data}"
