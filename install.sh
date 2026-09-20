@@ -23,7 +23,7 @@ FS="$(mount | sed -n "s|^.* on ${VOL} (\([^,)]*\).*|\1|p" | head -1)"
 case "$FS" in
   apfs|hfs) ;;
   "") echo "警告：无法判断 $VOL 的文件系统类型，请自行确认是 APFS 或 HFS+。" ;;
-  *)  echo "注意：$VOL 是 $FS。sparsebundle 内层是独立的 APFS 卷，所以 exFAT 外壳也能用，"
+  *)  echo "注意：$VOL 是 ${FS}。sparsebundle 内层是独立的 APFS 卷，所以 exFAT 外壳也能用，"
       echo "      但拔盘风险更高，务必遵守「拔盘前先退微信」。" ;;
 esac
 
@@ -46,7 +46,7 @@ read -r -p "继续？输入 yes: " ok
 if [ -d "$IMG" ]; then
   echo "镜像已存在，跳过创建。"
 else
-  echo "创建镜像（上限 $SIZE，稀疏按需增长，不会立刻占满）..."
+  echo "创建镜像（上限 ${SIZE}，稀疏按需增长，不会立刻占满）..."
   hdiutil create -size "$SIZE" -type SPARSEBUNDLE -fs APFS -volname WeChatData "$IMG"
 fi
 
@@ -75,7 +75,7 @@ sed -e "s|__SHELL__|/bin/bash|" \
 plutil -lint "$PLIST" >/dev/null
 launchctl unload "$PLIST" 2>/dev/null || true
 launchctl load "$PLIST"
-echo "已加载 LaunchAgent（日志 $LOG）"
+echo "已加载 LaunchAgent（日志 ${LOG}）"
 
 cat <<EOF
 

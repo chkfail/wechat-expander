@@ -14,7 +14,7 @@ for _ in $(seq 1 "$WAIT"); do
   [ -d "$IMG" ] && break
   sleep 1
 done
-[ -d "$IMG" ] || { echo "$(date): 等待 ${WAIT}s 后仍未找到镜像 $IMG，放弃"; exit 1; }
+[ -d "$IMG" ] || { echo "$(date): 等待 ${WAIT}s 后仍未找到镜像 ${IMG}，放弃"; exit 1; }
 
 hdiutil attach "$IMG" -mountpoint "$MNT" -nobrowse -owners on \
   && echo "$(date): 挂载成功" || echo "$(date): 挂载失败"

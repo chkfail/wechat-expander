@@ -34,7 +34,7 @@ if ! ls "$CONTAINER" >/dev/null 2>&1; then
 fi
 
 pgrep -x WeChat >/dev/null && { echo "微信还在运行，请 Cmd+Q 完全退出后重试。"; exit 1; }
-[ -d "$IMG" ] || { echo "找不到镜像：$IMG。先跑 ./install.sh 创建它。"; exit 1; }
+[ -d "$IMG" ] || { echo "找不到镜像：${IMG}。先跑 ./install.sh 创建它。"; exit 1; }
 
 # --- 1. 自动探测数据目录 -----------------------------------------------
 CANDIDATES=(

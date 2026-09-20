@@ -10,7 +10,7 @@ MNT="${WECHAT_MOUNT:-$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documen
 MOUNT_SCRIPT="${WECHAT_MOUNT_SCRIPT:-$HOME/bin/wechat-mount.sh}"
 
 pgrep -x WeChat >/dev/null && { echo "微信还在运行，请 Cmd+Q 完全退出后重试。"; exit 1; }
-[ -d "$IMG" ] || { echo "找不到镜像：$IMG（SSD 没插？）"; exit 1; }
+[ -d "$IMG" ] || { echo "找不到镜像：${IMG}（SSD 没插？）"; exit 1; }
 
 echo "压缩前: $(du -sh "$IMG" | cut -f1)"
 
