@@ -19,7 +19,7 @@ fi
 
 [ -d "$VOL" ] || { echo "找不到卷：$VOL"; exit 1; }
 
-FS="$(mount | awk -v v="$VOL" '$3 == v {print $4}' | tr -d '(,')"
+FS="$(mount | sed -n "s|^.* on ${VOL} (\([^,)]*\).*|\1|p" | head -1)"
 case "$FS" in
   apfs|hfs) ;;
   "") echo "警告：无法判断 $VOL 的文件系统类型，请自行确认是 APFS 或 HFS+。" ;;
