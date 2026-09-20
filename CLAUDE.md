@@ -1,10 +1,16 @@
 # CLAUDE.md
 
-方案背景、原理、对比和使用说明都在 [README.md](README.md)，先读那个。本文件只记录改这套脚本时需要知道的约定和坑。
+**给「使用这套脚本」的 agent**：看 [README.md](README.md) 后半部分《以下是给 agent 看的操作说明》，那里有完整流程、故障排查和设计约束。本文件不重复。
+
+**本文件只管「改这个仓库的代码」。**
+
+## 动手前
+
+README 里《设计约束（改代码前必读）》那四条是硬约束：`uchg` 保护、免 root、`wechat-mount.sh` 幂等、配置不写死。改之前先读，别在这里重复一遍 —— 单一来源。
 
 ## 代码约定
 
-**配置统一从 `~/.config/wechat-expander.conf` 读，环境变量可覆盖。** 每个脚本顶部四行：
+每个脚本顶部的配置读取是固定四行，新增脚本照抄：
 
 ```bash
 CONF="${WECHAT_EXPANDER_CONF:-$HOME/.config/wechat-expander.conf}"
@@ -13,27 +19,40 @@ IMG="${WECHAT_IMAGE:?...}"
 MNT="${WECHAT_MOUNT:-$HOME/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files}"
 ```
 
-别在脚本里写死卷名或 home 路径 —— 这是公开仓库，之前踩过这个坑。plist 同理，用 `.template` + `install.sh` 里的 `sed` 填充。
+plist 用 `.template` + 占位符，由 `install.sh` 里的 `sed` 填充。这是公开仓库，写死卷名或 home 路径会泄露个人信息 —— 之前踩过，`com.local.wechatmount.plist` 里的 `/Users/<name>/bin/...` 差点被推上去。
 
-**`wechat-mount.sh` 必须保持幂等。** `StartOnMount` 会在任何文件系统挂载时触发，重复执行是常态。开头那句 `mount | grep -q " on ${MNT} "` 是必需的，不是优化。
+`wechat-migrate.sh` 那两道 `yes` 确认不要合并或去掉。第二道的位置是关键：`ditto` 完成、校验数字打印之后、`mv` 之前。
 
-**破坏性操作必须有 `yes` 确认。** `wechat-migrate.sh` 里那两道关卡不要合并或去掉 —— 第二道是在 `ditto` 完成、校验数字打印之后、`mv` 之前，这个顺序是关键。
+## 中文脚本特有的坑
 
-## 改动时容易踩的坑
+**`$VAR` 紧跟多字节字符会被吞进变量名。** bash 解析 `$LOG）` 时找的是变量 `LOG）`。开了 `set -u` 的脚本直接崩，没开的静默取空值 —— 后者更难发现。全部用 `${VAR}` 显式界定。
 
-**TCC ≠ App Sandbox，两套独立机制。** `~/Library/Containers/*/Data` 的 `Operation not permitted` 是 TCC，关掉 seatbelt 沙盒毫无帮助，只能在系统设置里授权且需要重启进程生效。调试时别把两者混为一谈。
+提交前扫一遍：
 
-**免 root 是这个方案成立的前提。** `hdiutil attach -mountpoint <用户目录>` 不需要 root（已实测），所以能用 LaunchAgent。任何把它换成 `diskutil` 或别的挂载方式的改动，都必须先验证免 root 是否还成立 —— 否则整个架构要退化成 LaunchDaemon。
+```bash
+perl -ne 'print "$ARGV:$.: $_" if /\$[A-Za-z_]\w*[^\x00-\x7F]/' *.sh
+```
 
-**`uchg` 不是装饰。** 挂载点空目录上的 immutable 标志是数据分叉保护，已在真实的挂载失败场景下验证生效（失败后目录仍为空、标志仍在、mtime 未变）。不要因为"看起来多余"而删掉。挂载到 immutable 目录是正常工作的，实测过。
+## 发布前检查
 
-**`find` 比对两边文件数时，目标会多出卷元数据条目**（`.fseventsd` 等），属正常。判断拷贝完整性以 `du` 大小为准，别把文件数写成硬性断言。
+```bash
+for f in *.sh; do bash -n "$f" || echo "FAIL $f"; done
+perl -ne 'print "$ARGV:$.: $_" if /\$[A-Za-z_]\w*[^\x00-\x7F]/' *.sh
+git grep -niE "/Users/|Mac-mini|ts\.net" -- .            # 个人信息，只应命中 LICENSE 署名
+git ls-files -s | grep -v 100755 | grep '\.sh$'          # 脚本应为 100755
+```
 
-**`sudo` + 进程替换 `<(...)` 会报 `Bad file descriptor`。** 排查时用临时文件代替。本项目所有操作都不需要 sudo。
+最后一条踩过：`install.sh` 用 Write 创建时没带执行位，clone 下来是 `permission denied`。
 
-## 给 AI agent 的操作提示
+用 `grep -r` 扫个人信息不可靠（漏过一次），一律用 `git grep` 只扫跟踪文件。
 
-- **Claude Code 自己的 shell（包括 `!` 命令模式）没有完全磁盘访问权限**，任何触碰 `~/Library/Containers/*/Data` 的命令在这里必然失败。这类命令要交给用户在「终端」App 里执行。
-- 判断命令跑在哪：输出带 shell 提示符（`用户名@主机名 %`）的是用户自己的终端。
-- 写 `~/bin`、`~/Library/LaunchAgents`、`.git/config` 可能被沙盒或权限策略拦截，必要时让用户自己执行。
-- 想验证挂载逻辑，可以拿一个临时 sparsebundle 挂到 `$TMPDIR` 下的目录测，不要拿真实微信数据试。
+## 测试
+
+改挂载逻辑时，拿临时 sparsebundle 挂到 `$TMPDIR` 下的目录验证，别拿真实微信数据试：
+
+```bash
+hdiutil create -size 1g -type SPARSEBUNDLE -fs APFS -volname T "$TMPDIR/t.sparsebundle"
+hdiutil attach "$TMPDIR/t.sparsebundle" -mountpoint "$TMPDIR/m" -nobrowse -owners on
+```
+
+注意 Claude Code 自己的 shell 没有完全磁盘访问权限，容器相关的命令必须交给用户在「终端」App 里跑。

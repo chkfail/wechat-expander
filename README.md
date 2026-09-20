@@ -1,93 +1,46 @@
 # wechat-expander
 
-把 macOS 微信的聊天数据搬到外置 SSD，**不重签名、不装 kext、不降低系统安全策略**。
+**Mac 微信吃掉几十 GB 内置盘？把聊天数据搬到外置 SSD，微信照常用。**
 
-适合小容量内置盘 + 常年外接 SSD 的 Mac（尤其是 Mac mini / Studio 这类台式机）。
+不重签名、不装任何第三方软件、不降低系统安全设置。
 
 ![platform](https://img.shields.io/badge/platform-macOS-lightgrey)
 ![shell](https://img.shields.io/badge/shell-bash-4EAA25)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 
-> **English summary** — WeChat for Mac keeps tens of gigabytes of chat history inside
-> its App Sandbox container and, unlike the Windows client, offers no setting to move
-> it. A symlink does not work: the sandbox resolves symlinks and checks the *real*
-> path, which now lies outside the container. The popular workaround — stripping the
-> code signature with `codesign --force --deep --sign -` — breaks on every WeChat
-> update and disables entitlement-dependent features.
->
-> This project instead **mounts an APFS sparsebundle stored on an external SSD
-> directly at the container's data directory**. A mount does not change the path, only
-> the filesystem behind it, so the sandbox rule still matches and the signature is
-> untouched. No re-signing, no macFUSE/kext, no reduced startup security policy.
-> Because `hdiutil attach -mountpoint` needs no root, a plain user LaunchAgent handles
-> mounting at boot and on re-plug. An immutable (`chflags uchg`) mount point prevents
-> WeChat from silently rebuilding a divergent data set when the SSD is absent.
->
-> Docs below are in Chinese; the scripts print Chinese messages too.
+<details>
+<summary>English summary</summary>
 
-## 问题
+WeChat for Mac keeps tens of gigabytes of chat history inside its App Sandbox
+container and, unlike the Windows client, offers no setting to move it. A symlink
+does not work: the sandbox resolves symlinks and checks the *real* path, which then
+lies outside the container. The popular workaround — stripping the code signature
+with `codesign --force --deep --sign -` — breaks on every WeChat update and disables
+entitlement-dependent features.
 
-Mac 版微信的聊天数据放在沙盒容器里，几年下来轻松吃掉几十 GB：
+This project instead **mounts an APFS sparsebundle stored on an external SSD directly
+at the container's data directory**. A mount does not change the path, only the
+filesystem behind it, so the sandbox rule still matches and the signature is
+untouched. No re-signing, no macFUSE/kext, no reduced startup security policy.
+Because `hdiutil attach -mountpoint` needs no root, a plain user LaunchAgent handles
+mounting at boot and on re-plug. An immutable (`chflags uchg`) mount point stops
+WeChat from silently rebuilding a divergent data set while the SSD is absent.
 
-```
-~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files
-```
+</details>
 
-而 **Mac 版微信没有「更改存储位置」这个设置**（Windows 版 4.0 有，Mac 版一直没有）。
+---
 
-## 为什么软链接不行
+## 最省事的用法
 
-微信是沙盒应用：
-
-```console
-$ codesign -d --entitlements - /Applications/WeChat.app
-    [Key] com.apple.security.app-sandbox
-    [Key] com.apple.security.files.downloads.read-write
-    [Key] com.apple.security.files.user-selected.read-write
-```
-
-App Sandbox 校验的是**路径解析之后的真实位置**。软链接会解析到 `/Volumes/...`，落在容器外面，直接被拒。
-
-网上流传的教程靠 `codesign --force --deep --sign -` 砸掉签名来绕过，代价是：微信每次自动更新都要重签、依赖 entitlement 的功能（如截图）失效、TCC 授权重置。本项目不走这条路。
-
-## 方案：挂载点
-
-挂载**不改变路径**，只替换路径背后的文件系统。路径仍在容器前缀内，沙盒的 `subpath` 规则照常匹配，签名完全不动。
-
-macOS 没有 Linux 的 `mount --bind`，不能把目录挂到目录上，所以需要先用磁盘映像造出一个真正的块设备。sparsebundle 在这里的作用**不是**跨平台兼容，纯粹是「变出一个可挂载的设备」—— 并且 `hdiutil attach -mountpoint` 挂到用户自己的目录**不需要 root**，这让开机自动挂载可以用普通 LaunchAgent 完成，不必上 LaunchDaemon。
+把下面这句话丢给 Claude Code、Cursor、或任何能在你电脑上跑命令的 AI agent：
 
 ```
-微信（沙盒进程）
- │   只认这一个路径，写死在容器里
- ▼
-~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files   ← 挂载点
- │   底下是一个 chflags uchg 的空目录，挂载时被盖住
- ▼
-/dev/diskNs1    内层 APFS 卷「WeChatData」
- ▼
-/dev/diskN      虚拟磁盘设备（hdiutil 从 sparsebundle 拉起）
- ▼
-/Volumes/你的SSD/WeChatData.sparsebundle
- ▼
-            外置 SSD
+读 https://github.com/chkfail/wechat-expander 的 README，帮我把 Mac 微信数据迁到外置 SSD
 ```
 
-### 对比其他方案
+本 README 后半部分就是写给它看的操作说明，它会照着做完，包括中途需要你手动点的两个系统设置。
 
-| 方案 | 结论 |
-|---|---|
-| 软链接 + 重签名 | ❌ 破坏沙盒签名，微信每次更新都要重签，截图等功能失效 |
-| macFUSE + bindfs | ❌ 需加载第三方 kext；Apple Silicon 必须进恢复模式把启动安全策略降到「降低安全性」 |
-| 在 SSD 的 APFS 容器里直接加第二个卷 | ⚠️ 存储上更干净（共享空间、无需 compact），但挂到自定义路径需要 root → 得用 LaunchDaemon。未验证 |
-| **sparsebundle + 挂载点**（本项目） | ✅ 免 root、免 kext、不动签名 |
-
-## 要求
-
-- macOS，外接 SSD（APFS 或 HFS+ 最佳）
-- 微信 3.x 或 4.x（迁移脚本会自动探测两种目录结构）
-- **SSD 需要常年接着** —— 拔掉时微信将无法打开（数据不会丢，见下）
-
-## 安装
+## 自己动手
 
 ```bash
 git clone https://github.com/chkfail/wechat-expander.git
@@ -95,55 +48,138 @@ cd wechat-expander
 ./install.sh /Volumes/你的SSD
 ```
 
-`install.sh` 会创建镜像、写配置到 `~/.config/wechat-expander.conf`、把脚本装到 `~/bin/`、生成并加载 LaunchAgent。**它不动你的数据。**
+然后按屏幕提示做两件事：给 `/bin/bash` 完全磁盘访问权限，再在「终端」App 里跑 `./wechat-migrate.sh`。详细步骤见下面的《安装流程》。
 
-然后还有两步必须手动：
+## 用之前先知道这几件事
 
-### 1. 给 `/bin/bash` 完全磁盘访问权限
+| | |
+|---|---|
+| **能省多少** | 你的 `xwechat_files` 目录有多大就省多少，通常 10–50 GB |
+| **SSD 要常年接着** | 拔掉时微信打不开（数据不会丢），插回自动恢复 |
+| **拔盘前必须退微信** | 这是唯一的真实风险点，SQLite 写到一半断连会坏库 |
+| **手机才是主备份** | Mac 端始终当缓存看待 |
+| **适合谁** | Mac mini / Studio 这类常年接盘的台式机最合适；笔记本要掂量一下线被碰掉的概率 |
 
-系统设置 → 隐私与安全性 → 完全磁盘访问权限 → `+` → 文件选择器里按 **Cmd+Shift+G** 输入 `/bin/bash` → 添加并打开。
+---
 
-LaunchAgent 以 `/bin/bash` 的身份访问受 TCC 保护的容器目录，没有这个授权，开机挂载会报 `Permission denied`。
+# 以下是给 agent 看的操作说明
 
-> 觉得给系统 bash 开全盘权限太宽，可以 `cp /bin/bash ~/bin/wcbash`，把 plist 里的 `/bin/bash` 改成副本路径，只给副本授权。
+## 先读这段：你多半干不了全部的活
 
-### 2. 迁移数据
+微信数据目录受 **TCC（完全磁盘访问权限）** 保护。你所在的 shell —— 无论是 Claude Code 自己的 bash、`!` 命令模式还是 IDE 集成终端 —— **几乎肯定没有这个权限**，所有触碰容器的命令都会返回 `Operation not permitted`。这不是沙盒问题，关掉沙盒也没用。
 
-**必须在「终端」App 里跑**（同样需要完全磁盘访问权限，加完记得 Cmd+Q 退出终端再重开才生效），并且**先 Cmd+Q 完全退出微信**：
+开工前先测一下：
+
+```bash
+ls ~/Library/Containers/com.tencent.xinWeChat/Data >/dev/null 2>&1 && echo "有权限" || echo "无权限"
+```
+
+显示「无权限」时，**迁移那一步必须让用户自己在「终端」App 里执行**，你负责给出命令和判断输出。别反复重试，也别试图绕过。
+
+## 原理
+
+App Sandbox 校验的是**路径解析之后的真实位置**。软链接会解析到 `/Volumes/...`，落在容器外，直接被拒 —— 所以网上那些教程要靠重签名砸掉沙盒。
+
+挂载不一样：它不改变路径，只替换路径背后的文件系统，沙盒的 `subpath` 规则照常匹配。macOS 没有 `mount --bind`，不能把目录挂到目录上，所以需要 sparsebundle 造出一个真正的块设备。
+
+```
+微信（沙盒进程）
+ ▼  只认这一个路径
+~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files   ← 挂载点
+ ▼  底下是 chflags uchg 的空目录，挂载时被盖住
+/dev/diskNs1   内层 APFS 卷「WeChatData」
+ ▼
+/Volumes/你的SSD/WeChatData.sparsebundle
+```
+
+## 安装流程
+
+### 0. 前置检查
+
+```bash
+ls /Volumes                                    # 确认 SSD 已挂载
+df -h /System/Volumes/Data                     # 记下当前可用空间，迁移后对比
+mount | grep -i "你的SSD"                       # 确认文件系统，APFS/HFS+ 最佳
+pgrep -x WeChat && echo "微信在运行，需要退出"
+```
+
+### 1. 安装
+
+```bash
+./install.sh /Volumes/你的SSD
+```
+
+创建镜像、写配置到 `~/.config/wechat-expander.conf`、装脚本到 `~/bin/`、生成并加载 LaunchAgent。**不碰数据。**
+
+### 2. 让用户给 `/bin/bash` 完全磁盘访问权限
+
+这步你做不了，必须用户手动操作：
+
+> 系统设置 → 隐私与安全性 → 完全磁盘访问权限 → `+` → 文件选择器里按 **Cmd+Shift+G** → 输入 `/bin/bash` → 添加并打开
+
+LaunchAgent 以 `/bin/bash` 身份访问受 TCC 保护的容器目录，不给权限开机挂载必然报 `Permission denied`。
+
+同时也要让用户给「终端」App 加上同样的权限（下一步要用），**加完必须 Cmd+Q 退出终端再重开**，TCC 授权对已运行的进程不生效。
+
+### 3. 迁移数据
+
+让用户在**有完全磁盘访问权限的「终端」App** 里执行，先 Cmd+Q 完全退出微信：
 
 ```bash
 ./wechat-migrate.sh
 ```
 
-脚本会自动探测数据目录、拷进镜像、打印两边大小和文件数让你核对。**破坏性操作前有两道 `yes` 确认**，任何一步不满意都能中止，原数据不动。原目录会先改名成 `.bak` 保留，等你打开微信验证无误后再自己删。
+脚本会自动探测数据目录（4.x 的 `xwechat_files` / 3.x 的 `Application Support`）、拷进镜像、打印两边大小和文件数。**破坏性操作前有两道 `yes` 确认。**
 
-## 日常使用
+核对要点：两边 `du` 大小一致即可。目标会多出几个卷元数据条目（`.fseventsd` 等），文件数不完全相等是正常的，别拿文件数做硬性断言。
 
-装完之后基本不用管 —— 开机和插盘时 LaunchAgent 会自动挂载。
+### 4. 验证
+
+让用户打开微信，确认四项：聊天记录在、**历史图片能真正加载出来**、文件能打开、搜索能用。图片和文件最容易暴露拷贝问题。
+
+确认无误后再删备份：
 
 ```bash
-# 查看状态
-mount | grep xwechat
-cat "${TMPDIR:-/tmp}/wechatmount.log"
-
-# 手动挂载（自动挂载失败时）
-bash ~/bin/wechat-mount.sh
-
-# 回收空间（先 Cmd+Q 退微信）
-bash ~/bin/wechat-compact.sh
+rm -rf ~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files.bak
+df -h /System/Volumes/Data     # 和第 0 步对比，空间应该降下来了
 ```
 
-## 注意事项
+**删备份之前空间不会释放**，别在这之前就报告「迁移完成，省出了 X GB」。
 
-**拔盘前必须 Cmd+Q 退出微信。** 这是本方案唯一的真实风险点 —— SQLite 写到一半断连接会损坏数据库。插回去会自动重挂，不用手动操作。
+### 5. 验证开机自动挂载
 
-**挂载点上的 `uchg` 是数据分叉保护。** 挂载失败时，那个空目录是 immutable 的，微信写不进去、只会报错打不开。没有这层保护的话，微信会在内置盘重建一套空数据，你以为没事继续用，下次挂载成功时这套新数据被盖掉 —— 那才是真正会丢东西的场景。
+让用户重启，然后开微信看历史记录在不在 —— 数据只存在于镜像里，记录能显示就证明挂载成功了。
 
-**sparsebundle 只增不减。** 在微信里删聊天记录不会把空间还给 SSD，要跑 `wechat-compact.sh` 回收。
+失败的话：
 
-**手机端才是聊天记录的主备份。** Mac 端始终当缓存看待。另外记得把 sparsebundle 加进 Time Machine 排除列表（如果你用 TM 备份那块外置盘的话），否则每次备份都会传一堆 band 文件。
+```bash
+cat "${TMPDIR:-/tmp}/wechatmount.log"
+mount | grep xwechat
+```
 
-**`hdiutil` 在较新的 macOS 上已有废弃告警**，提示改用 `diskutil image attach --mountPoint`。告警无害。但注意 `hdiutil attach -mountpoint` **不需要 root**，而 `diskutil` 挂到自定义路径可能需要 —— 将来真被移除时，免 root 这个前提要重新验证。
+日志里 `Permission denied` = 第 2 步的 `/bin/bash` 授权没做或没生效。
+
+## 故障排查
+
+| 现象 | 原因 |
+|---|---|
+| `Operation not permitted` 读容器 | TCC，不是沙盒。需要完全磁盘访问权限，且授权后要重启进程 |
+| `hdiutil: attach failed - Permission denied` | LaunchAgent 跑的 `/bin/bash` 没有完全磁盘访问权限 |
+| 微信打不开、提示重新登录 | 镜像没挂上。跑 `bash ~/bin/wechat-mount.sh`，数据没丢 |
+| `unbound variable` | `$VAR` 紧跟全角标点会被 bash 吞进变量名，用 `${VAR}` |
+| `sudo` + `<(...)` 报 `Bad file descriptor` | sudo 切断了进程替换的 fd。本项目所有操作都不需要 sudo |
+
+## 日常维护
+
+```bash
+mount | grep xwechat                              # 查看挂载状态
+bash ~/bin/wechat-mount.sh                        # 手动挂载
+bash ~/bin/wechat-compact.sh                      # 回收空间（先退微信）
+```
+
+**sparsebundle 只增不减。** 在微信里删聊天记录不会把空间还给 SSD，要跑 `wechat-compact.sh`。
+
+**如果用 Time Machine 备份那块外置盘**，记得把 sparsebundle 加进排除列表，否则每次备份都要传一堆 band 文件。
 
 ## 回退
 
@@ -164,17 +200,34 @@ hdiutil detach /tmp/wcback
 
 内置盘需要有足够空间容纳全部数据。
 
+## 设计约束（改代码前必读）
+
+**`uchg` 不是装饰。** 挂载点空目录上的 immutable 标志是数据分叉保护：挂载失败时微信写不进去、只会报错。没有它，微信会在内置盘重建一套空数据，用户以为没事继续用，下次挂载成功时这套新数据被盖掉 —— 那才是真正丢数据的场景。已在真实的挂载失败中验证生效。
+
+**免 root 是整个方案成立的前提。** `hdiutil attach -mountpoint <用户目录>` 不需要 root，所以能用 LaunchAgent 而非 LaunchDaemon。任何改用 `diskutil` 或其他挂载方式的改动，都必须先验证免 root 是否还成立。
+
+**`wechat-mount.sh` 必须幂等。** `StartOnMount` 会在任何文件系统挂载时触发，重复执行是常态。
+
+**配置统一从 `~/.config/wechat-expander.conf` 读**，环境变量可覆盖。别在脚本里写死卷名或 home 路径。
+
 ## 文件
 
 | 文件 | 作用 |
 |---|---|
-| `install.sh` | 创建镜像、写配置、装脚本和 LaunchAgent。不动数据 |
+| `install.sh` | 建镜像、写配置、装脚本和 LaunchAgent。不动数据 |
 | `wechat-migrate.sh` | 一次性迁移。路径自动探测 + 两道确认 |
-| `wechat-mount.sh` | 挂载。幂等，会等待 SSD 出现（默认最多 180 秒） |
+| `wechat-mount.sh` | 挂载。幂等，等待 SSD 出现（默认最多 180 秒） |
 | `wechat-compact.sh` | 回收 sparsebundle 空间 |
 | `com.local.wechatmount.plist.template` | LaunchAgent 模板，`RunAtLoad` + `StartOnMount` |
 
-配置从 `~/.config/wechat-expander.conf` 读取，也可用同名环境变量覆盖。
+## 对比其他方案
+
+| 方案 | 结论 |
+|---|---|
+| 软链接 + 重签名 | ❌ 破坏沙盒签名，微信每次更新都要重签，截图等功能失效 |
+| macFUSE + bindfs | ❌ 需加载第三方 kext；Apple Silicon 必须降低启动安全策略 |
+| SSD 的 APFS 容器里直接加卷 | ⚠️ 存储更干净，但挂到自定义路径需要 root → 得用 LaunchDaemon。未验证 |
+| **sparsebundle + 挂载点** | ✅ 免 root、免 kext、不动签名 |
 
 ## License
 
