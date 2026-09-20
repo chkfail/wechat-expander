@@ -4,6 +4,27 @@
 
 适合小容量内置盘 + 常年外接 SSD 的 Mac（尤其是 Mac mini / Studio 这类台式机）。
 
+![platform](https://img.shields.io/badge/platform-macOS-lightgrey)
+![shell](https://img.shields.io/badge/shell-bash-4EAA25)
+![license](https://img.shields.io/badge/license-MIT-blue)
+
+> **English summary** — WeChat for Mac keeps tens of gigabytes of chat history inside
+> its App Sandbox container and, unlike the Windows client, offers no setting to move
+> it. A symlink does not work: the sandbox resolves symlinks and checks the *real*
+> path, which now lies outside the container. The popular workaround — stripping the
+> code signature with `codesign --force --deep --sign -` — breaks on every WeChat
+> update and disables entitlement-dependent features.
+>
+> This project instead **mounts an APFS sparsebundle stored on an external SSD
+> directly at the container's data directory**. A mount does not change the path, only
+> the filesystem behind it, so the sandbox rule still matches and the signature is
+> untouched. No re-signing, no macFUSE/kext, no reduced startup security policy.
+> Because `hdiutil attach -mountpoint` needs no root, a plain user LaunchAgent handles
+> mounting at boot and on re-plug. An immutable (`chflags uchg`) mount point prevents
+> WeChat from silently rebuilding a divergent data set when the SSD is absent.
+>
+> Docs below are in Chinese; the scripts print Chinese messages too.
+
 ## 问题
 
 Mac 版微信的聊天数据放在沙盒容器里，几年下来轻松吃掉几十 GB：
