@@ -32,7 +32,7 @@ WeChat from silently rebuilding a divergent data set while the SSD is absent.
 
 ## 最省事的用法
 
-把下面这句话丢给 Claude Code、Cursor、或任何能在你电脑上跑命令的 AI agent：
+把下面这句话丢给 Claude、Codex、Zcode，或任何能在你电脑上跑命令的 AI agent：
 
 ```
 读 https://github.com/chkfail/wechat-expander 的 README，帮我把 Mac 微信数据迁到外置 SSD
@@ -219,6 +219,7 @@ hdiutil detach /tmp/wcback
 | `wechat-mount.sh` | 挂载。幂等，等待 SSD 出现（默认最多 180 秒） |
 | `wechat-compact.sh` | 回收 sparsebundle 空间 |
 | `com.local.wechatmount.plist.template` | LaunchAgent 模板，`RunAtLoad` + `StartOnMount` |
+| `AGENTS.md` | 改这个仓库代码时的约定和检查清单（`CLAUDE.md` 指向它） |
 
 ## 对比其他方案
 
